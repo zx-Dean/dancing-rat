@@ -25,7 +25,15 @@ jobs:
           path: dist/dancing_rat.exe
 
   build-macos:
-    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-13
+            arch: x86_64
+          - runner: macos-14
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -43,15 +51,15 @@ jobs:
           cp -R "dist/dancing_rat.app" dist/dmg/
           ln -s /Applications dist/dmg/Applications
           hdiutil create \
-            -volname "Dancing Rat" \
+            -volname "Dancing Rat (${{ matrix.arch }})" \
             -srcfolder dist/dmg \
             -ov \
             -format UDZO \
-            dist/dancing_rat.dmg
+            dist/dancing_rat-${{ matrix.arch }}.dmg
       - uses: actions/upload-artifact@v4
         with:
-          name: dancing_rat-macos
-          path: dist/dancing_rat.dmg
+          name: dancing_rat-macos-${{ matrix.arch }}
+          path: dist/dancing_rat-${{ matrix.arch }}.dmg
 
   release:
     needs: [build-windows, build-macos]
@@ -68,4 +76,5 @@ jobs:
         with:
           files: |
             artifacts/dancing_rat-windows/dancing_rat.exe
-            artifacts/dancing_rat-macos/dancing_rat.dmg
+            artifacts/dancing_rat-macos-x86_64/dancing_rat-x86_64.dmg
+            artifacts/dancing_rat-macos-arm64/dancing_rat-arm64.dmg
