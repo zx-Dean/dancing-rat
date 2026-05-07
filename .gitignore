@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtualenv
+.venv/
+venv/
+
+# PyInstaller build artifacts
+build/
+dist/
+
+# IDE / tooling
+.idea/
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Out of scope for now — handle in a separate commit
+game.html
