@@ -25,41 +25,54 @@ jobs:
           path: dist/dancing_rat.exe
 
   build-macos:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: macos-13
-            arch: x86_64
-          - runner: macos-14
-            arch: arm64
-    runs-on: ${{ matrix.runner }}
+    runs-on: macos-14
+    env:
+      PY_VERSION: 3.12.7
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Install deps
+      - name: Install universal2 Python from python.org
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt pyinstaller
+          curl -L "https://www.python.org/ftp/python/${PY_VERSION}/python-${PY_VERSION}-macos11.pkg" -o python.pkg
+          sudo installer -pkg python.pkg -target /
+          echo "/Library/Frameworks/Python.framework/Versions/3.12/bin" >> "$GITHUB_PATH"
+      - name: Verify Python is universal2
+        run: |
+          file "$(which python3.12)"
+          file "$(which python3.12)" | grep -q "2 architectures" || { echo "Python is not universal2!"; exit 1; }
+      - name: Install deps (universal2 wheels only)
+        run: |
+          python3.12 -m pip install --upgrade pip
+          python3.12 -m pip install \
+            --upgrade \
+            --platform macosx_11_0_universal2 \
+            --only-binary=:all: \
+            --target ./build_libs \
+            -r requirements.txt pyinstaller
       - name: Build .app
-        run: pyinstaller --noconfirm dancing_rat.spec
+        env:
+          PYTHONPATH: ./build_libs
+        run: python3.12 -m PyInstaller --noconfirm dancing_rat.spec
+      - name: Verify .app is universal2
+        run: |
+          lipo -archs "dist/dancing_rat.app/Contents/MacOS/dancing_rat"
+          lipo -archs "dist/dancing_rat.app/Contents/MacOS/dancing_rat" | grep -q "x86_64" \
+            && lipo -archs "dist/dancing_rat.app/Contents/MacOS/dancing_rat" | grep -q "arm64" \
+            || { echo "App binary is not universal2!"; exit 1; }
       - name: Package .dmg
         run: |
           mkdir -p dist/dmg
           cp -R "dist/dancing_rat.app" dist/dmg/
           ln -s /Applications dist/dmg/Applications
           hdiutil create \
-            -volname "Dancing Rat (${{ matrix.arch }})" \
+            -volname "Dancing Rat" \
             -srcfolder dist/dmg \
             -ov \
             -format UDZO \
-            dist/dancing_rat-${{ matrix.arch }}.dmg
+            dist/dancing_rat.dmg
       - uses: actions/upload-artifact@v4
         with:
-          name: dancing_rat-macos-${{ matrix.arch }}
-          path: dist/dancing_rat-${{ matrix.arch }}.dmg
+          name: dancing_rat-macos
+          path: dist/dancing_rat.dmg
 
   release:
     needs: [build-windows, build-macos]
@@ -76,5 +89,4 @@ jobs:
         with:
           files: |
             artifacts/dancing_rat-windows/dancing_rat.exe
-            artifacts/dancing_rat-macos-x86_64/dancing_rat-x86_64.dmg
-            artifacts/dancing_rat-macos-arm64/dancing_rat-arm64.dmg
+            artifacts/dancing_rat-macos/dancing_rat.dmg
